@@ -1,8 +1,15 @@
 package com.qasymphony.ci.plugin.utils;
 
+import hudson.ProxyConfiguration;
+import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.*;
@@ -12,6 +19,7 @@ import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.NoConnectionReuseStrategy;
+import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.protocol.HttpContext;
@@ -162,7 +170,7 @@ public class HttpClientUtils {
    * @throws ClientRequestException ClientRequestException
    */
   public static ResponseEntity post(String url, Map<String, String> headers, String data)
-    throws ClientRequestException {
+          throws ClientRequestException {
     return post(url, headers, data, ContentType.APPLICATION_JSON);
   }
 
@@ -175,7 +183,7 @@ public class HttpClientUtils {
    * @throws ClientRequestException ClientRequestException
    */
   public static ResponseEntity post(String url, Map<String, String> headers, String data, ContentType contentType)
-    throws ClientRequestException {
+          throws ClientRequestException {
     HttpPost request = new HttpPost(url);
     addHeader(request, headers);
     if (!StringUtils.isEmpty(data))
@@ -203,7 +211,7 @@ public class HttpClientUtils {
    * @throws ClientRequestException ClientRequestException
    */
   public static ResponseEntity put(String url, Map<String, String> headers, String data, ContentType contentType)
-    throws ClientRequestException {
+          throws ClientRequestException {
     HttpPut request = new HttpPut(url);
     addHeader(request, headers);
     if (!StringUtils.isEmpty(data))
@@ -229,7 +237,7 @@ public class HttpClientUtils {
    * @throws ClientRequestException ClientRequestException
    */
   public static ResponseEntity delete(String url, Map<String, String> headers, ContentType contentType)
-    throws ClientRequestException {
+          throws ClientRequestException {
     HttpDelete request = new HttpDelete(url);
     addHeader(request, headers);
     return execute(request);
@@ -288,6 +296,26 @@ public class HttpClientUtils {
     }
   }
 
+  private static void setHttpProxy(HttpClientBuilder httpClientBuilder) {
+    ProxyConfiguration proxyConfig = Jenkins.getInstance().proxy;
+    if (proxyConfig != null) {
+      HttpHost proxy = new HttpHost(proxyConfig.name, proxyConfig.port);
+      String username = proxyConfig.getUserName();
+      String password = proxyConfig.getPassword();
+
+      Credentials credentials;
+      if (username != null && StringUtils.isNotEmpty(username) == true) {
+        credentials = new UsernamePasswordCredentials(username, password);
+      } else  {
+        credentials = new UsernamePasswordCredentials("", "");
+      }
+      AuthScope authScope = new AuthScope(proxyConfig.name, proxyConfig.port);
+      CredentialsProvider credsProvider = new BasicCredentialsProvider();
+      credsProvider.setCredentials(authScope, credentials);
+      httpClientBuilder.setProxy(proxy).setDefaultCredentialsProvider(credsProvider).build();
+    }
+  }
+
   public static HttpClient getHttpClient() throws Exception {
     int timeout;
     try {
@@ -297,17 +325,21 @@ public class HttpClientUtils {
     }
 
     HttpClientBuilder httpClientBuilder = HttpClientBuilder.create()
-      .useSystemProperties();
+            .useSystemProperties();
+
+    setHttpProxy(httpClientBuilder);
+
     SSLConnectionSocketFactory sslSocketFactory = getSslSocketFactory();
     httpClientBuilder.setSSLSocketFactory(sslSocketFactory)
-      .setConnectionReuseStrategy(new NoConnectionReuseStrategy());
+            .setConnectionReuseStrategy(new NoConnectionReuseStrategy());
 
     timeout = timeout * 1000;
+
     httpClientBuilder.setDefaultRequestConfig(RequestConfig.custom()
-      .setSocketTimeout(timeout)
-      .setConnectTimeout(timeout)
-      .setConnectionRequestTimeout(timeout)
-      .build());
+            .setSocketTimeout(timeout)
+            .setConnectTimeout(timeout)
+            .setConnectionRequestTimeout(timeout)
+            .build());
     httpClientBuilder.setRetryHandler(new DefaultHttpRequestRetryHandler(RETRY_MAX_COUNT, RETRY_REQUEST_SEND_RETRY_ENABLED) {
       @Override
       public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
@@ -322,7 +354,7 @@ public class HttpClientUtils {
   }
 
   private static SSLConnectionSocketFactory getSslSocketFactory()
-    throws KeyStoreException, NoSuchAlgorithmException, KeyManagementException {
+          throws KeyStoreException, NoSuchAlgorithmException, KeyManagementException {
     SSLContext sslContext = getSslContext();
     return new SSLConnectionSocketFactory(sslContext, ALLOW_ALL_HOSTNAME_VERIFIER);
   }
