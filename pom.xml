@@ -32,7 +32,7 @@
     <findbugs.skip>true</findbugs.skip>
     <jackson.version>2.10.4</jackson.version>
     <junit.plugin.version>1.9</junit.plugin.version>
-    <httpclient.version>4.5.12</httpclient.version>
+    <httpclient.version>4.5.13</httpclient.version>
 
     <commons-codec.version>1.15</commons-codec.version>
     <java.level>8</java.level>
